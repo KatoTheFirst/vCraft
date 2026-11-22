@@ -1,0 +1,18 @@
+<!doctype html>
+<html lang="vi">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Lô <%= batch.code %> | vCraft</title></head>
+<body>
+  <main>
+    <a href="/">vCraft Bát Tràng</a>
+    <h1><%= batch.product.name %></h1>
+    <p>Lô <%= batch.code %> gồm <%= batch.quantity %> sản phẩm.</p>
+    <a href="/artisan/<%= batch.product.artisan.slug %>"><%= batch.product.artisan.workshop_name %></a>
+    <h2>Nhật ký chế tác</h2>
+    <ol>
+      <% for (const log of batch.logs) { %>
+        <li><h3><%= log.title %></h3><time datetime="<%= log.occurred_at.toISOString() %>"><%= log.occurred_at.toISOString().slice(0, 10) %></time><p><%= log.description %></p></li>
+      <% } %>
+    </ol>
+  </main>
+</body>
+</html>
