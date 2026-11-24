@@ -1,0 +1,159 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  ADMIN
+  ARTISAN
+  BUYER
+}
+
+enum Approval {
+  PENDING
+  APPROVED
+  SUSPENDED
+}
+
+enum QuoteState {
+  DRAFT_REQUEST
+  SENT_TO_ARTISANS
+  ARTISANS_BIDDING
+  BUYER_ACCEPTED
+  IN_PRODUCTION
+  DELIVERED
+}
+
+model User {
+  id           String          @id @default(cuid())
+  email        String          @unique
+  name         String
+  role         Role
+  passwordHash String?
+  profile      ArtisanProfile?
+  requests     QuoteRequest[]
+  news         CommunityNews[]
+}
+
+model CraftVillage {
+  id       String           @id @default(cuid())
+  slug     String           @unique
+  name     String
+  profiles ArtisanProfile[]
+}
+
+model ArtisanProfile {
+  id           String           @id @default(cuid())
+  userId       String           @unique
+  user         User             @relation(fields: [userId], references: [id])
+  villageId    String
+  village      CraftVillage     @relation(fields: [villageId], references: [id])
+  slug         String           @unique
+  name         String
+  story        String?
+  images       String[]         @default([])
+  certificates String[]         @default([])
+  latitude     Float?
+  longitude    Float?
+  isOpen       Boolean          @default(false)
+  approval     Approval         @default(PENDING)
+  products     Product[]
+  bids         QuoteBid[]
+  invitations  QuoteRecipient[]
+
+  @@index([villageId, approval])
+}
+
+model Product {
+  id        String            @id @default(cuid())
+  artisanId String
+  artisan   ArtisanProfile    @relation(fields: [artisanId], references: [id])
+  name      String
+  category  String
+  price     Decimal           @db.Decimal(14, 0)
+  story     String?
+  images    String[]          @default([])
+  published Boolean           @default(false)
+  batches   ProductionBatch[]
+
+  @@index([artisanId, published])
+  @@index([category])
+}
+
+model ProductionBatch {
+  id        String          @id @default(cuid())
+  code      String          @unique
+  productId String
+  product   Product         @relation(fields: [productId], references: [id])
+  quantity  Int
+  logs      ProductionLog[]
+
+  @@index([productId])
+}
+
+model ProductionLog {
+  id         String          @id @default(cuid())
+  batchId    String
+  batch      ProductionBatch @relation(fields: [batchId], references: [id])
+  occurredAt DateTime        @db.Timestamptz(3)
+  title      String
+  images     String[]        @default([])
+
+  @@index([batchId, occurredAt])
+}
+
+model QuoteRequest {
+  id          String           @id @default(cuid())
+  buyerId     String
+  buyer       User             @relation(fields: [buyerId], references: [id])
+  description String
+  quantity    Int
+  deadline    DateTime         @db.Timestamptz(3)
+  state       QuoteState       @default(DRAFT_REQUEST)
+  version     Int              @default(0)
+  recipients  QuoteRecipient[]
+
+  @@index([buyerId, state])
+}
+
+model QuoteRecipient {
+  requestId String
+  artisanId String
+  request   QuoteRequest   @relation(fields: [requestId], references: [id])
+  artisan   ArtisanProfile @relation(fields: [artisanId], references: [id])
+  bid       QuoteBid?
+
+  @@id([requestId, artisanId])
+  @@index([artisanId])
+}
+
+model QuoteBid {
+  id               String         @id @default(cuid())
+  requestId        String
+  artisanId        String
+  recipient        QuoteRecipient @relation(fields: [requestId, artisanId], references: [requestId, artisanId])
+  artisan          ArtisanProfile @relation(fields: [artisanId], references: [id])
+  unitPrice        Decimal        @db.Decimal(14, 0)
+  quantity         Int
+  completionDate   DateTime       @db.Timestamptz(3)
+  acceptedQuantity Int            @default(0)
+
+  @@unique([requestId, artisanId])
+  @@index([artisanId])
+}
+
+model CommunityNews {
+  id          String    @id @default(cuid())
+  authorId    String
+  author      User      @relation(fields: [authorId], references: [id])
+  title       String
+  content     String
+  publishedAt DateTime? @db.Timestamptz(3)
+
+  @@index([publishedAt])
+  @@index([authorId])
+}

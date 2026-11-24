@@ -1,34 +1,50 @@
 {
   "name": "vcraft",
-  "version": "0.1.0",
-  "private": true,
-  "description": "Nền tảng triển lãm số Làng gốm Bát Tràng",
-  "engines": {
-    "node": ">=22"
-  },
+  "version": "1.0.0",
+  "description": "Nền tảng làng gốm Bát Tràng",
   "scripts": {
-    "start": "node src/server.js",
-    "dev": "node --watch src/server.js",
-    "db:migrate": "sequelize-cli db:migrate",
-    "db:undo": "sequelize-cli db:migrate:undo",
-    "db:seed": "node database/seed.js",
-    "setup": "npm run db:migrate && npm run db:seed",
-    "test": "node --test"
+    "test": "tsx --test tests/*.test.ts",
+    "dev": "next dev",
+    "build": "next build --webpack",
+    "start": "next start",
+    "typecheck": "next typegen && tsc --noEmit",
+    "lint": "eslint .",
+    "postinstall": "prisma generate",
+    "db:migrate": "prisma migrate deploy",
+    "db:seed": "tsx prisma/seed.ts"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/KatoTheFirst/vCraft.git"
   },
   "dependencies": {
-    "bcryptjs": "^3.0.3",
-    "dotenv": "^17.2.3",
-    "ejs": "^3.1.10",
-    "express": "^5.3.0",
-    "sequelize": "^6.37.8",
-    "sqlite3": "^6.0.1"
+    "@prisma/client": "^6.19.3",
+    "dotenv": "^18.0.10",
+    "next": "^16.4.6",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
+    "server-only": "^0.0.1",
+    "zod": "^4.6.7"
   },
   "devDependencies": {
-    "sequelize-cli": "6.6.2"
+    "@types/node": "^24.19.2",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "eslint": "^9.39.5",
+    "eslint-config-next": "^16.4.6",
+    "prettier": "^3.10.1",
+    "prisma": "^6.19.3",
+    "tsx": "^4.23.15",
+    "typescript": "^5.9.3"
+  },
+  "private": true,
+  "engines": {
+    "node": ">=22.12"
   },
   "overrides": {
-    "sequelize": {
-      "uuid": "^11.1.1"
+    "@prisma/config": {
+      "deepmerge-ts": "8.0.2",
+      "effect": "3.22.5"
     }
   }
 }
