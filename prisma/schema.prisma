@@ -33,6 +33,8 @@ model User {
   email        String          @unique
   name         String
   role         Role
+  phone        String?
+  sessions     LoginSession[]
   passwordHash String?
   profile      ArtisanProfile?
   requests     QuoteRequest[]
@@ -47,23 +49,26 @@ model CraftVillage {
 }
 
 model ArtisanProfile {
-  id           String           @id @default(cuid())
-  userId       String           @unique
-  user         User             @relation(fields: [userId], references: [id])
-  villageId    String
-  village      CraftVillage     @relation(fields: [villageId], references: [id])
-  slug         String           @unique
-  name         String
-  story        String?
-  images       String[]         @default([])
-  certificates String[]         @default([])
-  latitude     Float?
-  longitude    Float?
-  isOpen       Boolean          @default(false)
-  approval     Approval         @default(PENDING)
-  products     Product[]
-  bids         QuoteBid[]
-  invitations  QuoteRecipient[]
+  version       Int              @default(0)
+  id            String           @id @default(cuid())
+  userId        String           @unique
+  user          User             @relation(fields: [userId], references: [id])
+  villageId     String
+  village       CraftVillage     @relation(fields: [villageId], references: [id])
+  slug          String           @unique
+  name          String
+  familyHistory String?
+  assets        MediaAsset[]
+  story         String?
+  images        String[]         @default([])
+  certificates  String[]         @default([])
+  latitude      Float?
+  longitude     Float?
+  isOpen        Boolean          @default(false)
+  approval      Approval         @default(PENDING)
+  products      Product[]
+  bids          QuoteBid[]
+  invitations   QuoteRecipient[]
 
   @@index([villageId, approval])
 }
@@ -156,4 +161,34 @@ model CommunityNews {
 
   @@index([publishedAt])
   @@index([authorId])
+}
+
+model LoginSession {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime @db.Timestamptz(3)
+
+  @@index([expiresAt])
+  @@index([userId])
+}
+
+model AuthAttempt {
+  key       String   @id
+  count     Int
+  expiresAt DateTime @db.Timestamptz(3)
+
+  @@index([expiresAt])
+}
+
+model MediaAsset {
+  id        String         @id
+  artisanId String
+  artisan   ArtisanProfile @relation(fields: [artisanId], references: [id])
+  purpose   String
+  width     Int
+  height    Int
+  bytes     Int
+
+  @@index([artisanId, purpose])
 }

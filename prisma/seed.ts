@@ -1,21 +1,47 @@
 import "dotenv/config";
+import bcrypt from "bcryptjs";
 import { PrismaClient } from "@prisma/client";
 const db = new PrismaClient();
 async function seed() {
   if (process.env.NODE_ENV === "production")
     throw new Error("Seed chỉ dùng cho phát triển hoặc kiểm thử.");
+  const password = process.env.DEMO_PASSWORD;
+  if (
+    password &&
+    (password.length < 10 ||
+      !/\p{L}/u.test(password) ||
+      !/\d/.test(password) ||
+      bcrypt.truncates(password))
+  )
+    throw new Error("DEMO_PASSWORD");
+  const passwordHash = password ? await bcrypt.hash(password, 12) : undefined;
   await db.$transaction(async (tx) => {
     for (const role of ["ADMIN", "ARTISAN", "BUYER"] as const) {
       await tx.user.upsert({
         where: { email: role.toLowerCase() + "@example.test" },
         update: {},
         create: {
+          passwordHash,
           name: "Demo " + role,
           email: role.toLowerCase() + "@example.test",
           role,
         },
       });
     }
+    if (passwordHash)
+      await tx.user.updateMany({
+        where: {
+          email: {
+            in: [
+              "admin@example.test",
+              "artisan@example.test",
+              "buyer@example.test",
+            ],
+          },
+          passwordHash: null,
+        },
+        data: { passwordHash },
+      });
     const village = await tx.craftVillage.upsert({
       where: { slug: "bat-trang" },
       update: {},
