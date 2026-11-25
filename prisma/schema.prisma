@@ -16,6 +16,7 @@ enum Role {
 enum Approval {
   PENDING
   APPROVED
+  REJECTED
   SUSPENDED
 }
 
@@ -29,14 +30,17 @@ enum QuoteState {
 }
 
 model User {
-  id           String          @id @default(cuid())
-  email        String          @unique
+  createdAt    DateTime         @default(now()) @db.Timestamptz(3)
+  updatedAt    DateTime         @default(now()) @updatedAt @db.Timestamptz(3)
+  id           String           @id @default(cuid())
+  email        String           @unique
   name         String
   role         Role
   phone        String?
   sessions     LoginSession[]
   passwordHash String?
-  profile      ArtisanProfile?
+  reviews      ArtisanProfile[] @relation("WorkshopReviewer")
+  profile      ArtisanProfile?  @relation("WorkshopOwner")
   requests     QuoteRequest[]
   news         CommunityNews[]
 }
@@ -49,14 +53,20 @@ model CraftVillage {
 }
 
 model ArtisanProfile {
+  createdAt     DateTime         @default(now()) @db.Timestamptz(3)
+  updatedAt     DateTime         @default(now()) @updatedAt @db.Timestamptz(3)
   version       Int              @default(0)
   id            String           @id @default(cuid())
   userId        String           @unique
-  user          User             @relation(fields: [userId], references: [id])
+  user          User             @relation("WorkshopOwner", fields: [userId], references: [id])
   villageId     String
   village       CraftVillage     @relation(fields: [villageId], references: [id])
   slug          String           @unique
   name          String
+  reviewedById  String?
+  reviewedBy    User?            @relation("WorkshopReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
+  reviewedAt    DateTime?        @db.Timestamptz(3)
+  reviewNote    String?
   familyHistory String?
   assets        MediaAsset[]
   story         String?
@@ -70,10 +80,14 @@ model ArtisanProfile {
   bids          QuoteBid[]
   invitations   QuoteRecipient[]
 
+  @@index([reviewedById])
+  @@index([villageId, approval, isOpen])
   @@index([villageId, approval])
 }
 
 model Product {
+  createdAt DateTime          @default(now()) @db.Timestamptz(3)
+  updatedAt DateTime          @default(now()) @updatedAt @db.Timestamptz(3)
   id        String            @id @default(cuid())
   artisanId String
   artisan   ArtisanProfile    @relation(fields: [artisanId], references: [id])
@@ -90,12 +104,15 @@ model Product {
 }
 
 model ProductionBatch {
-  id        String          @id @default(cuid())
-  code      String          @unique
-  productId String
-  product   Product         @relation(fields: [productId], references: [id])
-  quantity  Int
-  logs      ProductionLog[]
+  createdAt  DateTime        @default(now()) @db.Timestamptz(3)
+  updatedAt  DateTime        @default(now()) @updatedAt @db.Timestamptz(3)
+  id         String          @id @default(cuid())
+  code       String          @unique
+  productId  String
+  product    Product         @relation(fields: [productId], references: [id])
+  quantity   Int
+  qrIssuedAt DateTime?       @db.Timestamptz(3)
+  logs       ProductionLog[]
 
   @@index([productId])
 }
@@ -112,16 +129,21 @@ model ProductionLog {
 }
 
 model QuoteRequest {
-  id          String           @id @default(cuid())
-  buyerId     String
-  buyer       User             @relation(fields: [buyerId], references: [id])
-  description String
-  quantity    Int
-  deadline    DateTime         @db.Timestamptz(3)
-  state       QuoteState       @default(DRAFT_REQUEST)
-  version     Int              @default(0)
-  recipients  QuoteRecipient[]
+  createdAt         DateTime         @default(now()) @db.Timestamptz(3)
+  updatedAt         DateTime         @default(now()) @updatedAt @db.Timestamptz(3)
+  id                String           @id @default(cuid())
+  buyerId           String
+  buyer             User             @relation(fields: [buyerId], references: [id])
+  description       String
+  quantity          Int
+  deadline          DateTime         @db.Timestamptz(3)
+  state             QuoteState       @default(DRAFT_REQUEST)
+  version           Int              @default(0)
+  budget            Decimal?         @db.Decimal(16, 0)
+  category          String?
+  recipients        QuoteRecipient[]
 
+  @@index([state, createdAt])
   @@index([buyerId, state])
 }
 
@@ -137,28 +159,36 @@ model QuoteRecipient {
 }
 
 model QuoteBid {
-  id               String         @id @default(cuid())
-  requestId        String
-  artisanId        String
-  recipient        QuoteRecipient @relation(fields: [requestId, artisanId], references: [requestId, artisanId])
-  artisan          ArtisanProfile @relation(fields: [artisanId], references: [id])
-  unitPrice        Decimal        @db.Decimal(14, 0)
-  quantity         Int
-  completionDate   DateTime       @db.Timestamptz(3)
-  acceptedQuantity Int            @default(0)
+  createdAt         DateTime       @default(now()) @db.Timestamptz(3)
+  updatedAt         DateTime       @default(now()) @updatedAt @db.Timestamptz(3)
+  id                String         @id @default(cuid())
+  requestId         String
+  artisanId         String
+  recipient         QuoteRecipient @relation(fields: [requestId, artisanId], references: [requestId, artisanId])
+  artisan           ArtisanProfile @relation(fields: [artisanId], references: [id])
+  unitPrice         Decimal        @db.Decimal(14, 0)
+  quantity          Int
+  completionDate    DateTime       @db.Timestamptz(3)
+  producedQuantity  Int            @default(0)
+  deliveredQuantity Int            @default(0)
+  acceptedQuantity  Int            @default(0)
 
   @@unique([requestId, artisanId])
   @@index([artisanId])
 }
 
 model CommunityNews {
+  createdAt   DateTime  @default(now()) @db.Timestamptz(3)
+  updatedAt   DateTime  @default(now()) @updatedAt @db.Timestamptz(3)
   id          String    @id @default(cuid())
   authorId    String
   author      User      @relation(fields: [authorId], references: [id])
   title       String
   content     String
+  pinned      Boolean   @default(false)
   publishedAt DateTime? @db.Timestamptz(3)
 
+  @@index([pinned, publishedAt])
   @@index([publishedAt])
   @@index([authorId])
 }

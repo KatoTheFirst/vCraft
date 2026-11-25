@@ -13,7 +13,9 @@ export function authorize<
     user.role !== role ||
     (role === "ARTISAN" &&
       (!user.profile ||
-        user.profile.approval === "SUSPENDED" ||
+        (["SUSPENDED", "REJECTED"] as string[]).includes(
+          user.profile.approval,
+        ) ||
         (approved && user.profile.approval !== "APPROVED")))
   )
     throw new Problem(403, "Tài khoản chưa được phép thực hiện thao tác này.");

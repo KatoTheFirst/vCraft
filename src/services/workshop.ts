@@ -67,7 +67,7 @@ export async function saveProfile(id: string, raw: unknown) {
       throw new Problem(400, "Ảnh không thuộc xưởng hoặc sai mục đích.");
   }
   const result = await db.artisanProfile.updateMany({
-    where: { id, version, approval: { not: "SUSPENDED" } },
+    where: { id, version, approval: { in: ["PENDING", "APPROVED"] } },
     data: { ...data, version: { increment: 1 } },
   });
   if (!result.count)

@@ -14,7 +14,10 @@ export default async function Dashboard({
   if (!["admin", "buyer", "artisan"].includes(role)) notFound();
   if (role !== user.role.toLowerCase()) redirect(destinations[user.role]);
   if (user.role === "ARTISAN") {
-    if (!user.profile || user.profile.approval === "SUSPENDED")
+    if (
+      !user.profile ||
+      (["SUSPENDED", "REJECTED"] as string[]).includes(user.profile.approval)
+    )
       return <p>Tài khoản chưa có quyền quản lý xưởng.</p>;
     return <WorkshopForm profile={await ownProfile(user.profile.id)} />;
   }

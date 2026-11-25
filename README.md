@@ -32,3 +32,21 @@ node -e "console.log(require('node:crypto').randomBytes(32).toString('base64'))"
 Ảnh được lưu bên ngoài public, metadata nằm trong PostgreSQL. Khi phát triển, mặc định dùng .vcraft-media. Khi triển khai, đặt MEDIA_STORAGE_DIR tới đường dẫn tuyệt đối của volume bền vững, có quyền ghi cho tiến trình ứng dụng. Các instance phải dùng chung volume và sao lưu cùng CSDL. Đặt giới hạn request ở reverse proxy đủ cho multipart tối đa 30 MiB cộng 64 KiB. Máy chủ serverless chỉ có ổ tạm cần backend lưu trữ bền vững trước khi bật upload.
 
 Để chạy kiểm thử HTTP, khởi động app với database kiểm thử riêng, thư mục ảnh kiểm thử riêng và SESSION_SECRET, rồi chạy npm test với TEST_DATABASE_URL trỏ cùng database và TEST_BASE_URL trỏ tới app đó. Bài kiểm thử tạo tài khoản và ảnh riêng cho từng lần chạy.
+
+## Cơ sở dữ liệu Bát Tràng
+
+Schema chính nằm trong [prisma/schema.prisma](prisma/schema.prisma). Chạy `npm run db:migrate` trên database cần cài đặt hoặc nâng cấp, sau đó chạy `npm run db:seed` cho môi trường phát triển. Lịch sử migration bao gồm khóa ngoại, index và các trigger kiểm soát tổng phân bổ khi nhiều xưởng cùng nhận một đơn.
+
+| Phân hệ                   | Bảng và dữ liệu                                                                                                                                                   |
+| ------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Tài khoản                 | User, LoginSession, AuthAttempt lưu ba vai trò, phiên và bộ đếm giới hạn đăng nhập                                                                                |
+| Xưởng, bản đồ, kiểm duyệt | CraftVillage, ArtisanProfile, MediaAsset lưu làng, vị trí ghim, trạng thái mở cửa, nội dung xưởng, ảnh, chứng nhận và quyết định duyệt gần nhất                   |
+| Triển lãm và QR           | Product, ProductionBatch, ProductionLog lưu danh mục, mã lô duy nhất, ngày cấp QR, thời điểm và ảnh từng công đoạn                                                |
+| Mua sỉ và điều phối       | QuoteRequest, QuoteRecipient, QuoteBid lưu quy cách, số lượng, ngân sách dự kiến (VND), thời hạn, hộ được mời, giá chào và số lượng nhận/sản xuất/đã giao theo hộ |
+| Bảng tin                  | CommunityNews lưu tác giả, bài viết, thời điểm công khai và cờ ghim                                                                                               |
+
+Mỗi ghim lấy tọa độ từ hồ sơ xưởng. Mỗi tem QR dùng mã lô; module QR ghi qrIssuedAt khi phát hành. Chữ ký QR có thể tính từ mã lô và khóa bí mật phía server. Dashboard thống kê trực tiếp từ các bảng nghiệp vụ. Dữ liệu cũ được gán thời gian migration cho các cột thời gian mới bắt buộc.
+
+Khi chốt số lượng, cập nhật các QuoteBid của cùng đơn trong một transaction. PostgreSQL kiểm tra tổng phân bổ ≤ số lượng đặt và số đã giao ≤ số đã sản xuất ≤ số đã nhận ≤ năng lực chào. Trigger ghi version của đơn khi thêm bid hoặc cập nhật số lượng nhận. Service cần kiểm tra version trước khi ghi và lấy lại version sau transaction. Sáu bước chuyển trạng thái và quyền của người thao tác thuộc module báo giá.
+
+Seed bổ sung một đơn mua sỉ 500 cốc, hai xưởng được mời, hai báo giá và một tin ghim. Tọa độ xưởng demo là dữ liệu minh họa.

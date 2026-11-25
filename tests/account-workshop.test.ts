@@ -8,7 +8,7 @@ import { authorize } from "../src/lib/policy";
 test("business operations require an approved artisan", () => {
   for (const role of ["ADMIN", "BUYER"] as const)
     assert.throws(() => authorize({ role, profile: null }, "ARTISAN", true));
-  for (const approval of ["PENDING", "SUSPENDED"] as const)
+  for (const approval of ["PENDING", "SUSPENDED", "REJECTED"] as const)
     assert.throws(() =>
       authorize({ role: "ARTISAN", profile: { approval } }, "ARTISAN", true),
     );
