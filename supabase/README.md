@@ -1,5 +1,7 @@
 # Đưa vCraft lên Supabase PostgreSQL
 
+[Dashboard Supabase của vCraft](https://supabase.com/dashboard/project/wnnfshywubkycmiihjvh)
+
 Bộ cài dành cho một project Supabase mới, tương ứng ba migration hiện tại. Trang web tiếp tục xác thực bằng cookie của Next.js và truy cập PostgreSQL bằng Prisma ở server.
 
 1. Trong Supabase, mở **SQL Editor**, chạy toàn bộ [01-schema.sql](01-schema.sql) một lần. File tạo 13 bảng, khóa ngoại, index, ràng buộc số lượng và trigger đồng bộ phân bổ. RLS được bật cho cả 13 bảng. Quyền trực tiếp của hai role trình duyệt được thu hồi.
