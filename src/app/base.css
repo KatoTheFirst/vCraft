@@ -202,3 +202,11 @@ summary {
     grid-template-columns: repeat(auto-fill, minmax(10rem, 1fr));
   }
 }
+.warning {
+  flex-basis: 100%;
+  margin: 0.5rem 0 0;
+  padding: 0.5rem 0.75rem;
+  border-left: 4px solid #b5651d;
+  background: #fff4e5;
+  color: #5a3a12;
+}

@@ -184,8 +184,18 @@ function BatchForm({ productId }: { productId: string }) {
     </form>
   );
 }
+// The QR can be printed for a draft, but /trace answers 404 until it is public.
+export function DraftQrWarning({ published }: { published: boolean }) {
+  if (published) return null;
+  return (
+    <p className="warning">
+      Sản phẩm đang ở chế độ Nháp: quét mã QR sẽ báo không tìm thấy trang cho
+      đến khi bạn bật &quot;Công khai trên trang triển lãm&quot;.
+    </p>
+  );
+}
 // One QR per batch: every product in the batch carries the same label.
-function BatchQr({ batch }: { batch: Batch }) {
+function BatchQr({ batch, published }: { batch: Batch; published: boolean }) {
   const { busy, message, send } = useSend();
   const code = encodeURIComponent(batch.code);
   const qr = `/api/v1/batches/${code}/qr?format=`;
@@ -223,6 +233,7 @@ function BatchQr({ batch }: { batch: Batch }) {
         </a>{" "}
         · <Link href={"/trace/" + code}>Trang truy xuất</Link>
       </p>
+      <DraftQrWarning published={published} />
     </div>
   );
 }
@@ -319,7 +330,7 @@ export function ProductManager({ products }: { products: Product[] }) {
               <h3>
                 Lô {b.code} · {b.quantity} sản phẩm
               </h3>
-              <BatchQr batch={b} />
+              <BatchQr batch={b} published={p.published} />
               <ol>
                 {b.logs.map((l) => (
                   <li key={l.id}>
