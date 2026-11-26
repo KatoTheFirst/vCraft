@@ -89,3 +89,124 @@ fieldset {
 textarea {
   min-height: 5rem;
 }
+.card {
+  margin: 1rem 0;
+  padding: 0.75rem 1rem;
+  border: 1px solid #d9cec3;
+  border-radius: 0.4rem;
+  background: white;
+}
+summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+.timeline {
+  list-style: none;
+  margin: 1rem 0;
+  padding: 0;
+}
+.timeline > li {
+  position: relative;
+  display: grid;
+  grid-template-columns: 2.5rem minmax(0, 1fr);
+  gap: 0 1rem;
+  padding-bottom: 1.75rem;
+}
+.timeline > li:not(:last-child)::before {
+  content: "";
+  position: absolute;
+  top: 2.5rem;
+  bottom: 0;
+  left: calc(1.25rem - 1px);
+  width: 2px;
+  background: #d9cec3;
+}
+.step {
+  display: grid;
+  place-items: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: 50%;
+  background: #713c2b;
+  color: white;
+  font-weight: 700;
+}
+.timeline time {
+  color: #6b5d52;
+  font-size: 0.9rem;
+}
+.timeline h3,
+.timeline h4 {
+  margin: 0.1rem 0 0.6rem;
+}
+.photos {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(8rem, 1fr));
+  gap: 0.6rem;
+}
+.photos img {
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+  border-radius: 0.3rem;
+}
+.qr {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 1rem;
+}
+.eyebrow {
+  margin: 0;
+  color: #793c28;
+  font-size: 0.85rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.trace-hero {
+  display: grid;
+  gap: 1.5rem;
+  align-items: center;
+  padding-bottom: 1.5rem;
+  border-bottom: 1px solid #d9cec3;
+}
+.trace-hero h1 {
+  margin: 0.25rem 0 0.5rem;
+  font-size: clamp(1.75rem, 5vw, 2.75rem);
+  line-height: 1.15;
+}
+.trace-hero img {
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+  border-radius: 0.5rem;
+}
+@media (min-width: 48rem) {
+  .trace-hero {
+    grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr);
+  }
+  .photos {
+    grid-template-columns: repeat(auto-fill, minmax(10rem, 1fr));
+  }
+}
+.warning {
+  flex-basis: 100%;
+  margin: 0.5rem 0 0;
+  padding: 0.5rem 0.75rem;
+  border-left: 4px solid #b5651d;
+  background: #fff4e5;
+  color: #5a3a12;
+}

@@ -3,6 +3,9 @@ import { currentUser } from "@/services/auth";
 import { destinations } from "@/lib/policy";
 import { ownProfile } from "@/services/workshop";
 import { WorkshopForm } from "@/components/workshop-form";
+import { ProductManager } from "@/components/product-manager";
+import { ownProducts } from "@/services/production";
+import { db } from "@/lib/db";
 export default async function Dashboard({
   params,
 }: {
@@ -19,7 +22,16 @@ export default async function Dashboard({
       (["SUSPENDED", "REJECTED"] as string[]).includes(user.profile.approval)
     )
       return <p>Tài khoản chưa có quyền quản lý xưởng.</p>;
-    return <WorkshopForm profile={await ownProfile(user.profile.id)} />;
+    return (
+      <>
+        <WorkshopForm profile={await ownProfile(user.profile.id)} />
+        {user.profile.approval === "APPROVED" ? (
+          <ProductManager products={await ownProducts(db, user.profile.id)} />
+        ) : (
+          <p>Đăng sản phẩm và nhật ký sản xuất mở sau khi xưởng được duyệt.</p>
+        )}
+      </>
+    );
   }
   return (
     <section>
