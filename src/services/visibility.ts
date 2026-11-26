@@ -38,3 +38,25 @@ export async function publicProduct(client: Client, id: string) {
   });
   return product && { ...product, price: product.price.toNumber() };
 }
+// Read model for /trace/{code} and GET /api/v1/batches/{code}.
+export function traceBatch(client: Client, code: string) {
+  return client.productionBatch.findFirst({
+    where: { code, product: publicProductWhere },
+    select: {
+      code: true,
+      quantity: true,
+      qrIssuedAt: true,
+      product: {
+        select: {
+          id: true,
+          name: true,
+          category: true,
+          story: true,
+          images: true,
+          artisan: workshop,
+        },
+      },
+      logs,
+    },
+  });
+}

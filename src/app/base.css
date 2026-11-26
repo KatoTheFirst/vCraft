@@ -160,3 +160,45 @@ summary {
   object-fit: cover;
   border-radius: 0.3rem;
 }
+.qr {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 1rem;
+}
+.eyebrow {
+  margin: 0;
+  color: #793c28;
+  font-size: 0.85rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.trace-hero {
+  display: grid;
+  gap: 1.5rem;
+  align-items: center;
+  padding-bottom: 1.5rem;
+  border-bottom: 1px solid #d9cec3;
+}
+.trace-hero h1 {
+  margin: 0.25rem 0 0.5rem;
+  font-size: clamp(1.75rem, 5vw, 2.75rem);
+  line-height: 1.15;
+}
+.trace-hero img {
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+  border-radius: 0.5rem;
+}
+@media (min-width: 48rem) {
+  .trace-hero {
+    grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr);
+  }
+  .photos {
+    grid-template-columns: repeat(auto-fill, minmax(10rem, 1fr));
+  }
+}

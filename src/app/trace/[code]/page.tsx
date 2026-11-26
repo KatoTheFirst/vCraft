@@ -1,28 +1,10 @@
 import { notFound } from "next/navigation";
 import { publicBatch } from "@/services/catalog";
-export default async function Trace({
-  params,
-}: {
-  params: Promise<{ code: string }>;
-}) {
-  const batch = await publicBatch((await params).code);
+import { TraceView } from "@/components/trace-view";
+import { batchCode } from "@/validations/production";
+export default async function Trace({ params }: PageProps<"/trace/[code]">) {
+  const code = batchCode.safeParse((await params).code);
+  const batch = code.success ? await publicBatch(code.data) : null;
   if (!batch) notFound();
-  return (
-    <article>
-      <h1>{batch.product.name}</h1>
-      <p>Lô {batch.code}</p>
-      <ol>
-        {batch.logs.map((log, i) => (
-          <li key={i}>
-            <time dateTime={log.occurredAt.toISOString()}>
-              {log.occurredAt.toLocaleDateString("vi-VN", {
-                timeZone: "Asia/Ho_Chi_Minh",
-              })}
-            </time>{" "}
-            · {log.title}
-          </li>
-        ))}
-      </ol>
-    </article>
-  );
+  return <TraceView batch={batch} />;
 }

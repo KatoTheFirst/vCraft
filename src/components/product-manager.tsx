@@ -2,11 +2,13 @@
 import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import Image from "next/image";
 import type { ownProducts } from "@/services/production";
 import { ImagePicker } from "./image-picker";
 import { vnDate } from "./timeline";
 type Product = Awaited<ReturnType<typeof ownProducts>>[number];
-type Log = Product["batches"][number]["logs"][number];
+type Batch = Product["batches"][number];
+type Log = Batch["logs"][number];
 // datetime-local holds Bát Tràng time (UTC+7, no DST) on server and browser alike.
 const toInput = (d: Date) =>
   new Date(d.getTime() + 7 * 3600_000).toISOString().slice(0, 16);
@@ -182,6 +184,48 @@ function BatchForm({ productId }: { productId: string }) {
     </form>
   );
 }
+// One QR per batch: every product in the batch carries the same label.
+function BatchQr({ batch }: { batch: Batch }) {
+  const { busy, message, send } = useSend();
+  const code = encodeURIComponent(batch.code);
+  const qr = `/api/v1/batches/${code}/qr?format=`;
+  if (!batch.qrIssuedAt)
+    return (
+      <p>
+        <button
+          type="button"
+          disabled={busy}
+          onClick={() => send(`/api/v1/batches/${code}/qr`, "POST", {})}
+        >
+          Phát hành mã QR
+        </button>{" "}
+        <span role="status">{message}</span>
+      </p>
+    );
+  return (
+    <div className="qr">
+      <Image
+        unoptimized
+        width={128}
+        height={128}
+        src={qr + "png"}
+        alt={"Mã QR truy xuất lô " + batch.code}
+      />
+      <p>
+        Phát hành ngày {vnDate(batch.qrIssuedAt)}
+        <br />
+        <a href={qr + "png"} download>
+          Tải PNG
+        </a>{" "}
+        ·{" "}
+        <a href={qr + "svg"} download>
+          Tải SVG để in
+        </a>{" "}
+        · <Link href={"/trace/" + code}>Trang truy xuất</Link>
+      </p>
+    </div>
+  );
+}
 function LogForm({ code, log }: { code: string; log?: Log }) {
   const [images, setImages] = useState(log?.images ?? []);
   const { busy, message, send } = useSend();
@@ -275,6 +319,7 @@ export function ProductManager({ products }: { products: Product[] }) {
               <h3>
                 Lô {b.code} · {b.quantity} sản phẩm
               </h3>
+              <BatchQr batch={b} />
               <ol>
                 {b.logs.map((l) => (
                   <li key={l.id}>

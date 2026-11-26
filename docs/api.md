@@ -2,11 +2,11 @@
 
 Các Route Handler đọc công khai nhận GET hoặc HEAD. GET trả JSON UTF-8. HEAD trả cùng mã trạng thái, không có body. OPTIONS trả 204 và header Allow. Các endpoint chi tiết không nhận query string.
 
-| GET                     | data khi trả 200                                                   |
-| ----------------------- | ------------------------------------------------------------------ |
-| /api/v1/villages/{slug} | id, slug, name của làng                                            |
-| /api/v1/artisans/{slug} | slug, name, story, isOpen, village.name của xưởng công khai        |
-| /api/v1/batches/{code}  | code, quantity, product.name và logs gồm title, occurredAt, images |
+| GET                     | data khi trả 200                                                                                                                                                |
+| ----------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| /api/v1/villages/{slug} | id, slug, name của làng                                                                                                                                         |
+| /api/v1/artisans/{slug} | slug, name, story, isOpen, village.name của xưởng công khai                                                                                                     |
+| /api/v1/batches/{code}  | code, quantity, qrIssuedAt, product (id, name, category, story, images, artisan.slug, artisan.name, artisan.village.name) và logs gồm title, occurredAt, images |
 
 Slug gồm chữ thường ASCII, chữ số, phân tách bằng dấu gạch ngang. Mã lô chấp nhận chữ ASCII, số, gạch ngang và gạch dưới. Giới hạn 100 ký tự. Thời điểm nhật ký là ISO 8601 UTC.
 
@@ -64,3 +64,16 @@ Giới hạn: name 2–120 ký tự, category 1–60, story tối đa 5000, titl
 Mốc của một lô luôn được trả theo `occurredAt` tăng dần, cùng thời điểm thì theo id. Thứ tự này là thứ tự các bước chế tác trên trang chi tiết sản phẩm và trang truy xuất.
 
 Trang công khai `/products/{id}` chỉ hiển thị sản phẩm `published` của xưởng đã duyệt, gồm 20 lô mới nhất và timeline từng lô. Ảnh sản phẩm và ảnh mốc trở thành công khai theo quy tắc ảnh ở trên.
+
+## Mã QR theo lô và trang truy xuất (4.4)
+
+Mỗi lô có một mã duy nhất do server sinh (`BT-` + 10 ký tự hex). Mọi sản phẩm cùng lô in chung một QR. Nội dung QR là `{PUBLIC_APP_URL}/trace/{code}`; thiếu hoặc sai `PUBLIC_APP_URL` thì endpoint tải QR trả 500. Tạo lô sẽ phát hành QR ngay và ghi `qrIssuedAt`.
+
+| Phương thức và URL                            | Đầu vào                           | Kết quả                                                                           |
+| --------------------------------------------- | --------------------------------- | --------------------------------------------------------------------------------- |
+| GET /api/v1/batches/{code}/qr?format=png\|svg | Cookie nghệ nhân đã duyệt, chủ lô | 200 ảnh PNG 1024 px hoặc SVG để in (tải về). 409 nếu lô chưa phát hành QR         |
+| POST /api/v1/batches/{code}/qr                | Cookie nghệ nhân đã duyệt, chủ lô | 200, code, qrIssuedAt, traceUrl. Phát hành QR cho lô cũ; gọi lại giữ mốc đầu tiên |
+
+Lô của xưởng khác trả 404. `format` mặc định là png, giá trị khác trả 400.
+
+Trang công khai `/trace/{code}` và GET /api/v1/batches/{code} dùng chung một truy vấn. Chỉ lô thuộc sản phẩm `published` của xưởng đã duyệt mới hiển thị, ngoài ra trả 404. Trang kể lại hành trình theo thứ tự `occurredAt` kèm ảnh minh chứng từng bước. Có thể thêm route ký `/trace/{code}/{signature}` sau này (B.3) bằng cách render cùng component `TraceView` và nối chữ ký trong `traceUrl`.

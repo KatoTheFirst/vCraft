@@ -55,7 +55,7 @@ async function ownedProduct(tx: Tx, artisanId: string, id: string) {
 async function ownedBatch(tx: Tx, artisanId: string, code: string) {
   const found = await tx.productionBatch.findFirst({
     where: { code, product: { artisanId } },
-    select: { id: true },
+    select: { id: true, qrIssuedAt: true },
   });
   if (!found) throw missing();
   return found;
@@ -111,6 +111,7 @@ export async function updateProduct(
     );
   });
 }
+// Creating a batch issues its QR code, so qrIssuedAt is set immediately.
 export async function createBatch(
   client: Client,
   artisanId: string,
@@ -126,6 +127,7 @@ export async function createBatch(
           productId,
           quantity,
           code: newBatchCode(),
+          qrIssuedAt: new Date(),
         },
         select: batchFields,
       });
@@ -174,4 +176,29 @@ export async function updateLog(
       select: logFields,
     });
   });
+}
+// Idempotent: the first issue time is kept.
+export async function issueQr(client: Client, artisanId: string, code: string) {
+  return client.$transaction(async (tx) => {
+    const batch = await ownedBatch(tx, artisanId, code);
+    if (batch.qrIssuedAt) return batch.qrIssuedAt;
+    await tx.productionBatch.updateMany({
+      where: { id: batch.id, qrIssuedAt: null },
+      data: { qrIssuedAt: new Date() },
+    });
+    return (await ownedBatch(tx, artisanId, code)).qrIssuedAt!;
+  });
+}
+// QR images are only handed out to the owner, and only once issued.
+export async function issuedBatch(
+  client: Client,
+  artisanId: string,
+  code: string,
+) {
+  const batch = await client.productionBatch.findFirst({
+    where: { code, product: { artisanId } },
+    select: { qrIssuedAt: true },
+  });
+  if (!batch) throw missing();
+  if (!batch.qrIssuedAt) throw new Problem(409, "Lô chưa phát hành mã QR.");
 }
