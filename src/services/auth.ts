@@ -4,9 +4,9 @@ import { getIronSession } from "iron-session";
 import { createHash, randomUUID } from "node:crypto";
 import bcrypt from "bcryptjs";
 import { Prisma } from "@prisma/client";
-import { z } from "zod";
 import { db } from "@/lib/db";
 import { Problem } from "@/lib/endpoint";
+import { credentials, registration } from "@/validations/auth";
 const ttl = 7 * 24 * 3600;
 async function cookie() {
   const password = process.env.SESSION_SECRET;
@@ -63,23 +63,6 @@ export async function logout() {
     await db.loginSession.deleteMany({ where: { id: session.id } });
   session.destroy();
 }
-const email = z.email().trim().toLowerCase().max(254);
-const credentials = z.object({ email, password: z.string().min(1).max(128) });
-const registration = credentials
-  .extend({
-    name: z.string().trim().min(2).max(100),
-    phone: z
-      .string()
-      .regex(/^(?:0|\+84)[1-9]\d{8}$/, "Số điện thoại Việt Nam không hợp lệ."),
-    role: z.enum(["ARTISAN", "BUYER"]),
-    password: z
-      .string()
-      .min(10, "Mật khẩu cần ít nhất 10 ký tự.")
-      .regex(/\p{L}/u, "Mật khẩu cần có chữ.")
-      .regex(/\d/, "Mật khẩu cần có số.")
-      .refine((v) => !bcrypt.truncates(v), "Mật khẩu vượt 72 byte."),
-  })
-  .strict();
 async function throttle(action: string, email: string) {
   const window = 15 * 60 * 1000;
   const bucket = Math.floor(Date.now() / window);
@@ -138,7 +121,7 @@ export async function register(raw: unknown) {
 }
 const dummyHash = bcrypt.hashSync(randomUUID(), 12);
 export async function login(raw: unknown) {
-  const data = credentials.strict().parse(raw);
+  const data = credentials.parse(raw);
   await throttle("login", data.email);
   const user = await db.user.findUnique({ where: { email: data.email } });
   const valid = await bcrypt.compare(
