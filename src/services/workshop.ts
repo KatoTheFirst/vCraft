@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { Problem } from "@/lib/endpoint";
 import { authorize } from "@/lib/policy";
 import { currentUser } from "./auth";
+import { assertOwnMedia } from "./attachments";
 export async function workshopId(approved = false) {
   const user = authorize(await currentUser(), "ARTISAN", approved);
   return user.profile!.id;
@@ -50,21 +51,12 @@ export async function saveProfile(id: string, raw: unknown) {
     ["images", "workshop"],
     ["certificates", "certificate"],
   ] as const) {
-    const added = [
-      ...new Set(data[field].filter((url) => !previous[field].includes(url))),
-    ];
-    if (!added.length) continue;
-    const assets = await db.mediaAsset.findMany({
-      where: {
-        artisanId: id,
-        purpose,
-        id: { in: added.map((url) => url.split("/")[2] ?? "") },
-      },
-      select: { id: true },
-    });
-    const allowed = new Set(assets.map((a) => "/media/" + a.id + "/web"));
-    if (added.some((url) => !allowed.has(url)))
-      throw new Problem(400, "Ảnh không thuộc xưởng hoặc sai mục đích.");
+    await assertOwnMedia(
+      db,
+      id,
+      purpose,
+      data[field].filter((url) => !previous[field].includes(url)),
+    );
   }
   const result = await db.artisanProfile.updateMany({
     where: { id, version, approval: { in: ["PENDING", "APPROVED"] } },
