@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { redirect, notFound } from "next/navigation";
 import { currentUser } from "@/services/auth";
 import { destinations } from "@/lib/policy";
@@ -24,6 +25,9 @@ export default async function Dashboard({
       return <p>Tài khoản chưa có quyền quản lý xưởng.</p>;
     return (
       <>
+        {user.profile.approval === "APPROVED" && (
+          <Link href="/dashboard/quotes">Yêu cầu báo giá gửi tới xưởng</Link>
+        )}
         <WorkshopForm profile={await ownProfile(user.profile.id)} />
         {user.profile.approval === "APPROVED" ? (
           <ProductManager products={await ownProducts(db, user.profile.id)} />
@@ -41,6 +45,9 @@ export default async function Dashboard({
           : "Tài khoản khách hàng"}
       </h1>
       <p>{user.name}</p>
+      {user.role === "BUYER" && (
+        <Link href="/dashboard/quotes">Quản lý yêu cầu báo giá</Link>
+      )}
     </section>
   );
 }

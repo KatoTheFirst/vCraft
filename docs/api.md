@@ -77,3 +77,24 @@ Mỗi lô có một mã duy nhất do server sinh (`BT-` + 10 ký tự hex). M�
 Lô của xưởng khác trả 404. `format` mặc định là png, giá trị khác trả 400.
 
 Trang công khai `/trace/{code}` và GET /api/v1/batches/{code} dùng chung một truy vấn. Chỉ lô thuộc sản phẩm `published` của xưởng đã duyệt mới hiển thị, ngoài ra trả 404. Trang kể lại hành trình theo thứ tự `occurredAt` kèm ảnh minh chứng từng bước. Có thể thêm route ký `/trace/{code}/{signature}` sau này (B.3) bằng cách render cùng component `TraceView` và nối chữ ký trong `traceUrl`.
+
+## Báo giá mua sỉ (6.1, 6.2)
+
+Dashboard Buyer và Artisan dẫn tới /dashboard/quotes. Tất cả endpoint yêu cầu cookie phiên. Dữ liệu trả về dùng hợp đồng JSON v1.
+
+| Phương thức               | Ý nghĩa                                                                                                                                             |
+| ------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| GET /api/v1/quotes?page=1 | Trả items và hasNext, 10 yêu cầu mỗi trang. Buyer xem yêu cầu của mình cùng các báo giá. Nghệ nhân đã duyệt xem lời mời và báo giá của chính xưởng. |
+| POST /api/v1/quotes       | Buyer lưu nháp với category, description, quantity, budget (VND hoặc null), deadline (ISO 8601 có múi giờ). Trả 201.                                |
+| PATCH /api/v1/quotes/{id} | Gửi JSON gồm action, version hiện tại và dữ liệu bên dưới. Trả id, state, version mới.                                                              |
+
+| action  | Người thực hiện và dữ liệu                                                                                                                                                            |
+| ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| edit    | Buyer sở hữu đơn, gửi lại các trường bản nháp.                                                                                                                                        |
+| send    | Buyer gửi nháp còn hạn. Hệ thống xác định xưởng đã duyệt có sản phẩm công khai cùng phân loại, so khớp chính xác và bỏ qua hoa thường. Nếu chưa có xưởng phù hợp, giữ đơn ở bản nháp. |
+| bid     | Xưởng được mời tạo/sửa đơn giá VND unitPrice, năng lực quantity và ngày hoàn thành completionDate. Lần đầu chuyển đơn sang ARTISANS_BIDDING.                                          |
+| accept  | Buyer gửi bidId để chọn một chào giá còn hiệu lực, đủ số lượng của đơn.                                                                                                               |
+| start   | Xưởng được chọn chuyển BUYER_ACCEPTED sang IN_PRODUCTION.                                                                                                                             |
+| deliver | Xưởng xác nhận đã giao phần được nhận. Đơn chuyển DELIVERED khi tất cả phần đã nhận đều giao đủ.                                                                                      |
+
+Mỗi thay đổi chạy trong transaction và khóa dòng QuoteRequest trước khi đọc trạng thái. Phiên bản cũ hoặc thao tác sai trạng thái trả 409. Client tải lại danh sách để lấy phiên bản mới. Dữ liệu không hợp lệ trả 400, thiếu phiên trả 401, sai quyền trả 403 và đơn không thuộc Buyer trả 404.
