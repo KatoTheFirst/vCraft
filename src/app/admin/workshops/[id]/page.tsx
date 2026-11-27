@@ -4,7 +4,8 @@ import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import { Problem } from "@/lib/endpoint";
 import { workshopForReview } from "@/services/moderation";
-import { ReviewPanel, dateVN } from "@/components/workshop-review";
+import { ReviewPanel } from "@/components/workshop-review";
+import { dateVN } from "@/components/review-format";
 import { requireAdmin } from "../../guard";
 export default async function WorkshopReview({
   params,

@@ -107,6 +107,26 @@ test(
       assert.equal(items.length, 1);
       const id = items[0].id;
       const detail = await admin("/api/v1/admin/workshops/" + id);
+      // Server-rendered admin pages: labels and details must reach the HTML.
+      const listPage = await admin(
+        "/admin/workshops?q=" + encodeURIComponent(a.email),
+      );
+      assert.equal(listPage.status, 200);
+      assert.match(
+        listPage.text,
+        /<option[^>]*value="PENDING"[^>]*>Chờ duyệt<\/option>/,
+      );
+      const detailPage = await admin("/admin/workshops/" + id);
+      assert.equal(detailPage.status, 200);
+      assert.ok(
+        detailPage.text.includes(a.email),
+        "detail page shows the email",
+      );
+      assert.ok(
+        detailPage.text.includes("0912345678"),
+        "detail page shows the phone",
+      );
+      assert.ok(detailPage.text.includes("Ngày đăng ký"));
       assert.equal(detail.status, 200);
       assert.equal(detail.data.user["email" as never], a.email);
       // The artisan edits the profile while the admin is looking: stale version.

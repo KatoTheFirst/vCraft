@@ -4,26 +4,13 @@ import Link from "next/link";
 import type { Approval } from "@prisma/client";
 import type { listWorkshops } from "@/services/moderation";
 import { transitions } from "@/validations/moderation";
+import { dateVN, statusLabel } from "./review-format";
 type Row = Awaited<ReturnType<typeof listWorkshops>>["items"][number];
 // Rows fetched again from the API carry ISO strings instead of Dates.
 type Workshop = Omit<Row, "createdAt" | "reviewedAt"> & {
   createdAt: Date | string;
   reviewedAt: Date | string | null;
 };
-export const statusLabel: Record<Approval, string> = {
-  PENDING: "Chờ duyệt",
-  APPROVED: "Đã duyệt",
-  REJECTED: "Đã từ chối",
-  SUSPENDED: "Đã khóa",
-};
-export const dateVN = (d: Date | string | null) =>
-  d
-    ? new Intl.DateTimeFormat("vi-VN", {
-        dateStyle: "short",
-        timeStyle: "short",
-        timeZone: "Asia/Ho_Chi_Minh",
-      }).format(new Date(d))
-    : "—";
 const actions: Record<
   Approval,
   { to: Approval; label: string; destructive?: boolean }[]

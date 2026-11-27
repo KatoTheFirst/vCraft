@@ -2,7 +2,8 @@ import Link from "next/link";
 import { db } from "@/lib/db";
 import { listWorkshops } from "@/services/moderation";
 import { approvals } from "@/validations/moderation";
-import { WorkshopReviewList, statusLabel } from "@/components/workshop-review";
+import { WorkshopReviewList } from "@/components/workshop-review";
+import { statusLabel } from "@/components/review-format";
 import { requireAdmin } from "../guard";
 export default async function Workshops({
   searchParams,
