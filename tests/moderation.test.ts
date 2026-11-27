@@ -4,6 +4,7 @@ import type { Approval, Role } from "@prisma/client";
 import { Problem } from "../src/lib/endpoint";
 import { review, transitions } from "../src/validations/moderation";
 import {
+  OPEN_ORDER_STATES,
   listWorkshops,
   reviewWorkshop,
   workshopForReview,
@@ -25,7 +26,14 @@ function fakeDb(row: { approval: Approval; version: number; role?: Role }) {
   const state = { ...row, role: row.role ?? "ARTISAN" };
   const matches = (where: { id?: string; user?: { role: Role } }) =>
     where.id === "w1" && (!where.user || where.user.role === state.role);
+  const groupCalls: unknown[] = [];
   const client = {
+    quoteBid: {
+      groupBy: async (args: unknown) => (
+        groupCalls.push(args),
+        [{ artisanId: "w1", _count: { _all: 2 } }]
+      ),
+    },
     artisanProfile: {
       findFirst: async ({
         where,
@@ -33,7 +41,7 @@ function fakeDb(row: { approval: Approval; version: number; role?: Role }) {
         where: { id: string; user: { role: Role } };
       }) =>
         matches(where)
-          ? { approval: state.approval, version: state.version }
+          ? { id: "w1", approval: state.approval, version: state.version }
           : null,
       findMany: async (args: unknown) => (updates.push(args as never), []),
       findUniqueOrThrow: async () => ({ id: "w1", ...state }),
@@ -60,7 +68,7 @@ function fakeDb(row: { approval: Approval; version: number; role?: Role }) {
       },
     },
   };
-  return { client: client as never, updates, state };
+  return { client: client as never, updates, state, groupCalls };
 }
 test("transition table is exactly the agreed one", () => {
   assert.deepEqual(transitions, {
@@ -182,4 +190,37 @@ test("list defaults to PENDING, searches name or email and pages on the server",
   });
   assert.equal(junk.status, "PENDING");
   assert.equal(junk.page, 1);
+});
+
+test("open wholesale orders are counted once per page, read-only", async () => {
+  const { client, groupCalls, updates } = fakeDb({
+    approval: "APPROVED",
+    version: 0,
+  });
+  const detail = await workshopForReview(client, admin, "w1");
+  assert.equal(detail.openOrders, 2);
+  assert.equal(groupCalls.length, 1);
+  assert.deepEqual(groupCalls[0], {
+    by: ["artisanId"],
+    where: {
+      artisanId: { in: ["w1"] },
+      acceptedQuantity: { gt: 0 },
+      recipient: {
+        request: { state: { in: ["BUYER_ACCEPTED", "IN_PRODUCTION"] } },
+      },
+    },
+    _count: { _all: true },
+  });
+  assert.deepEqual([...OPEN_ORDER_STATES], ["BUYER_ACCEPTED", "IN_PRODUCTION"]);
+  // An empty page makes no count query; the result of a decision carries the count.
+  const before = groupCalls.length;
+  assert.deepEqual((await listWorkshops(client, admin, {})).items, []);
+  assert.equal(groupCalls.length, before);
+  const suspended = await reviewWorkshop(client, admin, "w1", {
+    approval: "SUSPENDED",
+    version: 0,
+    reviewNote: "Kiểm tra đơn dở",
+  });
+  assert.equal(suspended.openOrders, 2);
+  assert.ok(updates.length > 0);
 });

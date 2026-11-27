@@ -23,6 +23,16 @@ const actions: Record<
   SUSPENDED: [{ to: "APPROVED", label: "Mở khóa" }],
   REJECTED: [],
 };
+// Đ-3: suspending stalls these orders until the workshop is reinstated.
+export function OpenOrdersWarning({ count }: { count: number }) {
+  if (!count) return null;
+  return (
+    <p className="warning">
+      Xưởng đang có {count} đơn sỉ dở dang (BUYER_ACCEPTED/IN_PRODUCTION). Nếu
+      khóa, các đơn này sẽ dừng lại cho tới khi xưởng được mở khóa.
+    </p>
+  );
+}
 export function ReviewActions({
   workshop,
   onReviewed,
@@ -104,6 +114,9 @@ export function ReviewActions({
               ? "Xưởng sẽ mất quyền đăng bán, chào giá và trang công khai bị ẩn ngay."
               : "Hồ sơ sẽ bị từ chối và nghệ nhân không thể hoạt động."}
           </p>
+          {pending?.to === "SUSPENDED" && (
+            <OpenOrdersWarning count={workshop.openOrders} />
+          )}
           <label>
             Lý do (bắt buộc, gửi kèm quyết định)
             <textarea
@@ -207,6 +220,7 @@ export function ReviewPanel({ workshop }: { workshop: Workshop }) {
         {current.reviewedBy && <> bởi {current.reviewedBy.name}</>}
         {current.reviewNote && <> · Lý do: {current.reviewNote}</>}
       </p>
+      <OpenOrdersWarning count={current.openOrders} />
       <ReviewActions workshop={current} onReviewed={setCurrent} />
     </section>
   );

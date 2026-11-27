@@ -308,3 +308,112 @@ test("non-admins are blocked from admin pages and APIs", { skip }, async () => {
   assert.equal((await buyer("/api/v1/admin/workshops")).status, 403);
   assert.equal((await buyer("/api/v1/admin/workshops/x")).status, 403);
 });
+test(
+  "admin is told how many unfinished wholesale orders a workshop has",
+  { skip },
+  async () => {
+    const db = new PrismaClient({
+      datasourceUrl: process.env.TEST_DATABASE_URL,
+    });
+    try {
+      const village = await db.craftVillage.upsert({
+        where: { slug: "bat-trang" },
+        update: {},
+        create: { slug: "bat-trang", name: "Làng gốm Bát Tràng" },
+      });
+      const run = randomUUID();
+      const owner = await db.user.create({
+        data: {
+          email: `don-do-${run}@example.test`,
+          name: "Xưởng có đơn",
+          role: "ARTISAN",
+        },
+      });
+      const profile = await db.artisanProfile.create({
+        data: {
+          userId: owner.id,
+          villageId: village.id,
+          slug: "don-do-" + run,
+          name: "Xưởng có đơn " + run,
+          approval: "APPROVED",
+        },
+      });
+      const buyer = await db.user.create({
+        data: {
+          email: `mua-si-${run}@example.test`,
+          name: "Người mua sỉ",
+          role: "BUYER",
+        },
+      });
+      const request = await db.quoteRequest.create({
+        data: {
+          buyerId: buyer.id,
+          description: "Đơn thử Đ-3",
+          quantity: 10,
+          deadline: new Date(Date.now() + 30 * 864e5),
+          state: "BUYER_ACCEPTED",
+        },
+      });
+      await db.quoteRecipient.create({
+        data: { requestId: request.id, artisanId: profile.id },
+      });
+      await db.quoteBid.create({
+        data: {
+          requestId: request.id,
+          artisanId: profile.id,
+          unitPrice: 1000,
+          quantity: 10,
+          completionDate: new Date(Date.now() + 10 * 864e5),
+          acceptedQuantity: 10,
+        },
+      });
+      const adminEmail = `admin-${run}@example.test`;
+      await db.user.create({
+        data: {
+          email: adminEmail,
+          name: "BQL",
+          role: "ADMIN",
+          passwordHash: await bcrypt.hash(password, 10),
+        },
+      });
+      const admin = client();
+      await admin("/api/v1/auth/login", "POST", {
+        email: adminEmail,
+        password,
+      });
+      const count = async () =>
+        (await admin("/api/v1/admin/workshops/" + profile.id)).data.openOrders;
+      assert.equal(await count(), 1);
+      const list = await admin(
+        "/api/v1/admin/workshops?status=APPROVED&q=" +
+          encodeURIComponent(owner.email),
+      );
+      assert.equal(
+        (list.data.items as unknown as { openOrders: number }[])[0].openOrders,
+        1,
+      );
+      const page = await admin("/admin/workshops/" + profile.id);
+      assert.match(
+        page.text,
+        /đang có <!-- -->1<!-- --> đơn sỉ dở dang|đang có 1 đơn sỉ dở dang/,
+      );
+      await db.quoteRequest.update({
+        where: { id: request.id },
+        data: { state: "IN_PRODUCTION" },
+      });
+      assert.equal(await count(), 1);
+      await db.quoteRequest.update({
+        where: { id: request.id },
+        data: { state: "DELIVERED" },
+      });
+      assert.equal(await count(), 0);
+      // Read-only: looking at the workshop changed nothing in the order.
+      const bid = await db.quoteBid.findFirstOrThrow({
+        where: { requestId: request.id },
+      });
+      assert.equal(bid.acceptedQuantity, 10);
+    } finally {
+      await db.$disconnect();
+    }
+  },
+);

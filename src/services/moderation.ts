@@ -2,7 +2,7 @@ import type { Approval, Prisma, PrismaClient, Role } from "@prisma/client";
 import { Problem } from "@/lib/endpoint";
 import { authorize } from "@/lib/policy";
 import { listQuery, review, transitions } from "@/validations/moderation";
-type Client = Pick<PrismaClient, "artisanProfile">;
+type Client = Pick<PrismaClient, "artisanProfile" | "quoteBid">;
 type Viewer = {
   id: string;
   role: Role;
@@ -26,6 +26,26 @@ const row = {
   user: { select: { name: true, email: true, phone: true } },
   reviewedBy: { select: { name: true } },
 } satisfies Prisma.ArtisanProfileSelect;
+// Wholesale orders this workshop was chosen for and has not finished (Đ-3).
+// Read-only: suspending such a workshop stalls the order, so the admin is warned.
+export const OPEN_ORDER_STATES = ["BUYER_ACCEPTED", "IN_PRODUCTION"] as const;
+async function withOpenOrders<T extends { id: string }>(
+  client: Client,
+  rows: T[],
+) {
+  if (!rows.length) return [];
+  const counts = await client.quoteBid.groupBy({
+    by: ["artisanId"],
+    where: {
+      artisanId: { in: rows.map((r) => r.id) },
+      acceptedQuantity: { gt: 0 },
+      recipient: { request: { state: { in: [...OPEN_ORDER_STATES] } } },
+    },
+    _count: { _all: true },
+  });
+  const byId = new Map(counts.map((c) => [c.artisanId, c._count._all]));
+  return rows.map((r) => ({ ...r, openOrders: byId.get(r.id) ?? 0 }));
+}
 const label: Record<Approval, string> = {
   PENDING: "Chờ duyệt",
   APPROVED: "Đã duyệt",
@@ -59,7 +79,7 @@ export async function listWorkshops(
     q,
     page,
     hasNext: rows.length > PAGE_SIZE,
-    items: rows.slice(0, PAGE_SIZE),
+    items: await withOpenOrders(client, rows.slice(0, PAGE_SIZE)),
   };
 }
 export async function workshopForReview(
@@ -82,7 +102,7 @@ export async function workshopForReview(
     },
   });
   if (!found) throw new Problem(404, "Không tìm thấy hồ sơ xưởng.");
-  return found;
+  return (await withOpenOrders(client, [found]))[0];
 }
 // Conditional update: the row must still have the status and version the
 // admin was looking at, so a concurrent artisan edit or admin decision wins
@@ -125,8 +145,9 @@ export async function reviewWorkshop(
       409,
       "Hồ sơ vừa được cập nhật. Vui lòng tải lại để xem bản mới trước khi duyệt.",
     );
-  return client.artisanProfile.findUniqueOrThrow({
+  const updated = await client.artisanProfile.findUniqueOrThrow({
     where: { id },
     select: row,
   });
+  return (await withOpenOrders(client, [updated]))[0];
 }
