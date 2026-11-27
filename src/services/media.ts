@@ -116,6 +116,7 @@ export async function mediaBytes(
   id: string,
   variant: string,
   ownerId?: string,
+  isAdmin = false,
 ) {
   if (!/^[a-f0-9-]{36}$/.test(id) || !["thumb", "web"].includes(variant))
     return null;
@@ -137,9 +138,11 @@ export async function mediaBytes(
   if (!asset) return null;
   const a = asset.artisan;
   const url = "/media/" + id + "/web";
-  if (a.userId !== ownerId) {
+  const onProfile = a.images.includes(url) || a.certificates.includes(url);
+  // Admins review photos and certificates attached to any workshop profile (7.1).
+  if (a.userId !== ownerId && !(isAdmin && onProfile)) {
     if (a.approval !== "APPROVED") return null;
-    let published = a.images.includes(url) || a.certificates.includes(url);
+    let published = onProfile;
     if (!published && asset.purpose === "product")
       published = !!(await db.product.findFirst({
         where: {
