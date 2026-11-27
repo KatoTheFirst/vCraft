@@ -48,6 +48,9 @@ export default async function Dashboard({
       {user.role === "BUYER" && (
         <Link href="/dashboard/quotes">Quản lý yêu cầu báo giá</Link>
       )}
+      {user.role === "ADMIN" && (
+        <Link href="/admin/workshops">Kiểm duyệt hộ gia đình</Link>
+      )}
     </section>
   );
 }

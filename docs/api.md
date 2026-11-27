@@ -98,3 +98,26 @@ Dashboard Buyer và Artisan dẫn tới /dashboard/quotes. Tất cả endpoint y
 | deliver | Xưởng xác nhận đã giao phần được nhận. Đơn chuyển DELIVERED khi tất cả phần đã nhận đều giao đủ.                                                                                      |
 
 Mỗi thay đổi chạy trong transaction và khóa dòng QuoteRequest trước khi đọc trạng thái. Phiên bản cũ hoặc thao tác sai trạng thái trả 409. Client tải lại danh sách để lấy phiên bản mới. Dữ liệu không hợp lệ trả 400, thiếu phiên trả 401, sai quyền trả 403 và đơn không thuộc Buyer trả 404.
+
+## Kiểm duyệt hộ gia đình (7.1, Admin)
+
+Trang `/admin/workshops` (danh sách) và `/admin/workshops/{id}` (chi tiết) chỉ dành cho ADMIN. Chưa đăng nhập bị chuyển về `/login`, vai trò khác về dashboard của mình. Điều hướng chung của khu quản trị nằm ở `src/app/admin/layout.tsx`. Task 7.2 và B.4 thêm link vào đó.
+
+| Phương thức và URL                 | Đầu vào                                                                                              | Kết quả                                                                                                                     |
+| ---------------------------------- | ---------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| GET /api/v1/admin/workshops        | Query `status` (PENDING mặc định, APPROVED, REJECTED, SUSPENDED), `q` (tên xưởng hoặc email), `page` | 200, status, q, page, hasNext, items (20 hồ sơ mỗi trang, cũ nhất trước)                                                    |
+| GET /api/v1/admin/workshops/{id}   | —                                                                                                    | 200, hồ sơ đầy đủ: chủ hộ, email, SĐT, làng, lịch sử, câu chuyện, tọa độ, ảnh, chứng nhận, ngày đăng ký, lần duyệt gần nhất |
+| PATCH /api/v1/admin/workshops/{id} | JSON `approval`, `version` (đang xem), `reviewNote`                                                  | 200, hồ sơ sau khi cập nhật, version mới                                                                                    |
+
+Bảng chuyển trạng thái (ngoài bảng trả 409):
+
+| Từ        | Sang được           |
+| --------- | ------------------- |
+| PENDING   | APPROVED, REJECTED  |
+| APPROVED  | SUSPENDED           |
+| SUSPENDED | APPROVED            |
+| REJECTED  | — (quyết định cuối) |
+
+Từ chối (REJECTED) và khóa (SUSPENDED) bắt buộc `reviewNote` từ 5 đến 1000 ký tự, thiếu trả 400. Mỗi lần đổi trạng thái ghi `reviewedById`, `reviewedAt`, `reviewNote` và tăng `version`. Cập nhật chỉ thành công khi hồ sơ vẫn đúng trạng thái và `version` mà admin đang xem. Nếu nghệ nhân vừa lưu hồ sơ (PUT /api/v1/workshop cũng tăng `version`) hoặc admin khác vừa quyết định, API trả 409 và admin cần tải lại. Chỉ hồ sơ thuộc tài khoản ARTISAN được kiểm duyệt. API không đổi vai trò người dùng và không chạm tài khoản Admin. Lỗi: 401 chưa đăng nhập, 403 không phải Admin hoặc Origin lạ, 404 không có hồ sơ.
+
+Quyết định có hiệu lực ở request kế tiếp vì mỗi request đọc lại trạng thái duyệt từ PostgreSQL. Xưởng SUSPENDED/REJECTED không tạo hay sửa sản phẩm, lô, mốc, không chào giá; trang `/artisan/{slug}`, `/products/{id}`, `/trace/{code}` và ảnh công khai của xưởng trả 404. Schema chỉ lưu quyết định gần nhất, chưa có bảng lịch sử duyệt.
