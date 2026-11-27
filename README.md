@@ -31,6 +31,16 @@ node -e "console.log(require('node:crypto').randomBytes(32).toString('base64'))"
 
 Ảnh được lưu bên ngoài public, metadata nằm trong PostgreSQL. Khi phát triển, mặc định dùng .vcraft-media. Khi triển khai, đặt MEDIA_STORAGE_DIR tới đường dẫn tuyệt đối của volume bền vững, có quyền ghi cho tiến trình ứng dụng. Các instance phải dùng chung volume và sao lưu cùng CSDL. Đặt giới hạn request ở reverse proxy đủ cho multipart tối đa 30 MiB cộng 64 KiB. Máy chủ serverless chỉ có ổ tạm cần backend lưu trữ bền vững trước khi bật upload.
 
+Ảnh tải lên nhưng không gắn vào hồ sơ xưởng, sản phẩm hay mốc sản xuất nào sẽ nằm lại trong `MEDIA_STORAGE_DIR`. Dọn bằng:
+
+```sh
+npm run media:cleanup                     # chạy thử: chỉ liệt kê ảnh không dùng quá 7 ngày
+npm run media:cleanup -- --days 30        # đổi ngưỡng tuổi ảnh
+npm run media:cleanup -- --apply          # xóa thật: bản ghi MediaAsset và hai file web/thumb
+```
+
+Tuổi ảnh tính theo thời gian sửa file vì `MediaAsset` không lưu ngày tạo. Ảnh còn được tham chiếu trong `ArtisanProfile.images`, `ArtisanProfile.certificates`, `Product.images` hoặc `ProductionLog.images` không bao giờ bị xóa. Script dùng `DATABASE_URL` và `MEDIA_STORAGE_DIR` của môi trường hiện tại. Chỉ chạy khi thư mục ảnh thuộc đúng database đó; nếu nhiều database dùng chung một thư mục, ảnh của database kia sẽ bị coi là không dùng. Khi module mới thêm trường ảnh, cập nhật `referencedIds` trong `src/services/media-cleanup.ts`.
+
 Để chạy kiểm thử HTTP, khởi động app với database kiểm thử riêng, thư mục ảnh kiểm thử riêng và SESSION_SECRET, rồi chạy npm test với TEST_DATABASE_URL trỏ cùng database và TEST_BASE_URL trỏ tới app đó. Bài kiểm thử tạo tài khoản và ảnh riêng cho từng lần chạy.
 
 ## Cơ sở dữ liệu Bát Tràng
