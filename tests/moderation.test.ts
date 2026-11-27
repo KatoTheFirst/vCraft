@@ -75,12 +75,12 @@ test("transition table is exactly the agreed one", () => {
     PENDING: ["APPROVED", "REJECTED"],
     APPROVED: ["SUSPENDED"],
     SUSPENDED: ["APPROVED"],
-    REJECTED: [],
+    REJECTED: ["PENDING"],
   });
 });
 test("rejecting or suspending requires a reason; approving does not", () => {
   assert.ok(review.parse({ approval: "APPROVED", version: 0 }));
-  for (const approval of ["REJECTED", "SUSPENDED"] as const) {
+  for (const approval of ["REJECTED", "SUSPENDED", "PENDING"] as const) {
     assert.throws(() => review.parse({ approval, version: 0 }));
     assert.throws(() =>
       review.parse({ approval, version: 0, reviewNote: "   " }),
@@ -223,4 +223,32 @@ test("open wholesale orders are counted once per page, read-only", async () => {
   });
   assert.equal(suspended.openOrders, 2);
   assert.ok(updates.length > 0);
+});
+
+test("reopening a rejected workshop needs a reason and records the reviewer", async () => {
+  const { client, updates, state } = fakeDb({
+    approval: "REJECTED",
+    version: 7,
+  });
+  await assert.rejects(
+    reviewWorkshop(client, admin, "w1", { approval: "PENDING", version: 7 }),
+    (e) => e instanceof Error && e.name === "ZodError",
+  );
+  assert.equal(updates.length, 0);
+  const reopened = await reviewWorkshop(client, admin, "w1", {
+    approval: "PENDING",
+    version: 7,
+    reviewNote: "Đã bổ sung chứng nhận làng nghề",
+  });
+  const { where, data } = updates[0];
+  assert.deepEqual(
+    { from: where.approval, version: where.version, to: data.approval },
+    { from: "REJECTED", version: 7, to: "PENDING" },
+  );
+  assert.equal(data.reviewedById, "admin-1");
+  assert.ok(data.reviewedAt instanceof Date);
+  assert.equal(data.reviewNote, "Đã bổ sung chứng nhận làng nghề");
+  assert.deepEqual(data.version, { increment: 1 });
+  assert.equal(state.approval, "PENDING");
+  assert.equal(reopened.openOrders, 2);
 });

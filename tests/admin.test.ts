@@ -270,6 +270,47 @@ test(
         ).status,
         409,
       );
+      // Reopen: a reason is required, then the applicant is PENDING again.
+      const reopenPath = "/api/v1/admin/workshops/" + bRow.id;
+      assert.equal(
+        (
+          await admin(reopenPath, "PATCH", {
+            approval: "PENDING",
+            version: rejected.data.version,
+          })
+        ).status,
+        400,
+      );
+      const reopened = await admin(reopenPath, "PATCH", {
+        approval: "PENDING",
+        version: rejected.data.version,
+        reviewNote: "Đã bổ sung chứng nhận làng nghề",
+      });
+      assert.equal(reopened.status, 200);
+      assert.equal(reopened.data.approval, "PENDING");
+      assert.equal(reopened.data.version, rejected.data.version + 1);
+      const bAfter = await db.artisanProfile.findUniqueOrThrow({
+        where: { id: bRow.id },
+        include: { reviewedBy: true },
+      });
+      assert.equal(bAfter.reviewedBy?.email, adminEmail);
+      assert.equal(bAfter.reviewNote, "Đã bổ sung chứng nhận làng nghề");
+      assert.ok(bAfter.reviewedAt! > bRow.createdAt);
+      // Back to an editable pending profile, still unable to sell, then approvable.
+      assert.equal((await b.call("/api/v1/workshop")).status, 200);
+      assert.equal(
+        (await b.call("/api/v1/products", "POST", product)).status,
+        403,
+      );
+      assert.equal(
+        (
+          await admin(reopenPath, "PATCH", {
+            approval: "APPROVED",
+            version: reopened.data.version,
+          })
+        ).status,
+        200,
+      );
     } finally {
       await db.$disconnect();
     }

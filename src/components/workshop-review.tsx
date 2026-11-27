@@ -13,15 +13,25 @@ type Workshop = Omit<Row, "createdAt" | "reviewedAt"> & {
 };
 const actions: Record<
   Approval,
-  { to: Approval; label: string; destructive?: boolean }[]
+  // reason: asks for a note in the dialog; destructive: red button.
+  { to: Approval; label: string; reason?: boolean; destructive?: boolean }[]
 > = {
   PENDING: [
     { to: "APPROVED", label: "Duyệt" },
-    { to: "REJECTED", label: "Từ chối", destructive: true },
+    { to: "REJECTED", label: "Từ chối", reason: true, destructive: true },
   ],
-  APPROVED: [{ to: "SUSPENDED", label: "Khóa", destructive: true }],
+  APPROVED: [
+    { to: "SUSPENDED", label: "Khóa", reason: true, destructive: true },
+  ],
   SUSPENDED: [{ to: "APPROVED", label: "Mở khóa" }],
-  REJECTED: [],
+  REJECTED: [{ to: "PENDING", label: "Mở lại hồ sơ", reason: true }],
+};
+const consequence: Partial<Record<Approval, string>> = {
+  SUSPENDED:
+    "Xưởng sẽ mất quyền đăng bán, chào giá và trang công khai bị ẩn ngay.",
+  REJECTED: "Hồ sơ sẽ bị từ chối và nghệ nhân không thể hoạt động.",
+  PENDING:
+    "Hồ sơ quay lại trạng thái chờ duyệt để nghệ nhân bổ sung, rồi được duyệt lại.",
 };
 // Đ-3: suspending stalls these orders until the workshop is reinstated.
 export function OpenOrdersWarning({ count }: { count: number }) {
@@ -80,7 +90,7 @@ export function ReviewActions({
           disabled={busy}
           className={a.destructive ? "danger" : undefined}
           onClick={() => {
-            if (!a.destructive) return send(a.to);
+            if (!a.reason) return send(a.to);
             setPending(a);
             setMessage("");
             dialog.current?.showModal();
@@ -89,7 +99,6 @@ export function ReviewActions({
           {a.label}
         </button>
       ))}
-      {!available.length && <span>Không còn thao tác.</span>}
       <span role="status" aria-live="polite">
         {message}
       </span>
@@ -109,11 +118,7 @@ export function ReviewActions({
           <h2 id={"review-title-" + workshop.id}>
             {pending?.label} xưởng “{workshop.name}”?
           </h2>
-          <p>
-            {pending?.to === "SUSPENDED"
-              ? "Xưởng sẽ mất quyền đăng bán, chào giá và trang công khai bị ẩn ngay."
-              : "Hồ sơ sẽ bị từ chối và nghệ nhân không thể hoạt động."}
-          </p>
+          <p>{pending && consequence[pending.to]}</p>
           {pending?.to === "SUSPENDED" && (
             <OpenOrdersWarning count={workshop.openOrders} />
           )}
@@ -130,7 +135,11 @@ export function ReviewActions({
             {message}
           </p>
           <div className="review-actions">
-            <button type="submit" className="danger" disabled={busy}>
+            <button
+              type="submit"
+              className={pending?.destructive ? "danger" : undefined}
+              disabled={busy}
+            >
               {busy ? "Đang lưu…" : "Xác nhận " + pending?.label.toLowerCase()}
             </button>
             <button

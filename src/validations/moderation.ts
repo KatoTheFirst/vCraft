@@ -5,7 +5,8 @@ export const transitions: Record<Approval, Approval[]> = {
   PENDING: ["APPROVED", "REJECTED"],
   APPROVED: ["SUSPENDED"],
   SUSPENDED: ["APPROVED"],
-  REJECTED: [],
+  // "Mở lại hồ sơ": the applicant fixes the profile and is reviewed again.
+  REJECTED: ["PENDING"],
 };
 export const approvals = [
   "PENDING",
@@ -15,7 +16,7 @@ export const approvals = [
 ] as const;
 export const review = z
   .object({
-    approval: z.enum(["APPROVED", "REJECTED", "SUSPENDED"]),
+    approval: z.enum(["APPROVED", "REJECTED", "SUSPENDED", "PENDING"]),
     version: z.number().int().nonnegative(),
     reviewNote: z.string().trim().max(1000).optional(),
   })
@@ -23,7 +24,8 @@ export const review = z
   .refine(
     (r) => r.approval === "APPROVED" || (r.reviewNote?.length ?? 0) >= 5,
     {
-      message: "Từ chối hoặc khóa cần ghi lý do (ít nhất 5 ký tự).",
+      message:
+        "Từ chối, khóa hoặc mở lại hồ sơ cần ghi lý do (ít nhất 5 ký tự).",
       path: ["reviewNote"],
     },
   );

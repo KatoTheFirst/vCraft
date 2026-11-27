@@ -121,14 +121,14 @@ Trang `/admin/workshops` (danh sách) và `/admin/workshops/{id}` (chi tiết) c
 
 Bảng chuyển trạng thái (ngoài bảng trả 409):
 
-| Từ        | Sang được           |
-| --------- | ------------------- |
-| PENDING   | APPROVED, REJECTED  |
-| APPROVED  | SUSPENDED           |
-| SUSPENDED | APPROVED            |
-| REJECTED  | — (quyết định cuối) |
+| Từ        | Sang được                |
+| --------- | ------------------------ |
+| PENDING   | APPROVED, REJECTED       |
+| APPROVED  | SUSPENDED                |
+| SUSPENDED | APPROVED                 |
+| REJECTED  | PENDING ("Mở lại hồ sơ") |
 
-Từ chối (REJECTED) và khóa (SUSPENDED) bắt buộc `reviewNote` từ 5 đến 1000 ký tự, thiếu trả 400. Mỗi lần đổi trạng thái ghi `reviewedById`, `reviewedAt`, `reviewNote` và tăng `version`. Cập nhật chỉ thành công khi hồ sơ vẫn đúng trạng thái và `version` mà admin đang xem. Nếu nghệ nhân vừa lưu hồ sơ (PUT /api/v1/workshop cũng tăng `version`) hoặc admin khác vừa quyết định, API trả 409 và admin cần tải lại. Chỉ hồ sơ thuộc tài khoản ARTISAN được kiểm duyệt. API không đổi vai trò người dùng và không chạm tài khoản Admin. Lỗi: 401 chưa đăng nhập, 403 không phải Admin hoặc Origin lạ, 404 không có hồ sơ.
+Từ chối (REJECTED), khóa (SUSPENDED) và mở lại hồ sơ bị từ chối (REJECTED → PENDING) bắt buộc `reviewNote` từ 5 đến 1000 ký tự, thiếu trả 400. Mở lại hồ sơ đưa xưởng về chờ duyệt: nghệ nhân sửa được hồ sơ và tải chứng nhận bổ sung nhưng chưa được đăng bán, sau đó admin duyệt hoặc từ chối lại. Mỗi lần đổi trạng thái ghi `reviewedById`, `reviewedAt`, `reviewNote` và tăng `version`. Cập nhật chỉ thành công khi hồ sơ vẫn đúng trạng thái và `version` mà admin đang xem. Nếu nghệ nhân vừa lưu hồ sơ (PUT /api/v1/workshop cũng tăng `version`) hoặc admin khác vừa quyết định, API trả 409 và admin cần tải lại. Chỉ hồ sơ thuộc tài khoản ARTISAN được kiểm duyệt. API không đổi vai trò người dùng và không chạm tài khoản Admin. Lỗi: 401 chưa đăng nhập, 403 không phải Admin hoặc Origin lạ, 404 không có hồ sơ.
 
 Mỗi hồ sơ trong danh sách, chi tiết và kết quả PATCH có thêm `openOrders`: số đơn sỉ xưởng được chọn (QuoteBid có `acceptedQuantity` > 0) mà đơn đang ở BUYER_ACCEPTED hoặc IN_PRODUCTION. Trang chi tiết và dialog Khóa hiện cảnh báo khi số này lớn hơn 0, vì khóa xưởng sẽ làm các đơn đó dừng lại cho tới khi mở khóa. Trường này chỉ đọc, không đổi đơn sỉ.
 
