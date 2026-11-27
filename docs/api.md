@@ -45,6 +45,16 @@ Login và register giới hạn 10 lượt mỗi email mỗi thao tác trong c�
 
 Upload nhận 1–6 JPEG, PNG hoặc WebP tĩnh, tối đa 5 MiB và 24 megapixel mỗi ảnh. WebP hiển thị tối đa 1600 px, thumbnail 320 px, giữ tỷ lệ. Purpose nhận workshop, certificate, product hoặc production-log. Lưu url vào đúng trường ảnh của đối tượng sở hữu. Ảnh chưa gắn chỉ chủ xưởng xem được. Công khai ảnh khi gắn vào hồ sơ đã duyệt hoặc sản phẩm/lô công khai thuộc đúng xưởng.
 
+Hạn mức upload theo xưởng (hằng số trong `src/services/media.ts`):
+
+| Hằng số                      | Giá trị | Ý nghĩa                                                                   |
+| ---------------------------- | ------- | ------------------------------------------------------------------------- |
+| `UPLOAD_REQUESTS_PER_15_MIN` | 20      | Số request POST /api/v1/uploads mỗi xưởng trong một cửa sổ 15 phút        |
+| `MEDIA_QUOTA_PENDING`        | 30      | Tổng số ảnh một xưởng chờ duyệt được lưu (đủ cho ảnh xưởng và chứng nhận) |
+| `MEDIA_QUOTA_APPROVED`       | 600     | Tổng số ảnh một xưởng đã duyệt được lưu                                   |
+
+Vượt số request trả 429. Vượt tổng số ảnh trả 409 kèm số ảnh đang có, số còn lại và cách xử lý. Mã 409 được chọn thay vì 413 vì bản thân request hợp lệ; nó chỉ xung đột với số ảnh xưởng đang lưu, còn 413 vẫn dành cho từng ảnh quá 5 MiB hoặc body quá lớn. Server kiểm tra rate limit và hạn mức sơ bộ trước khi đọc body, nên request bị từ chối không làm server đọc tới 30 MiB. Hạn mức chính thức được kiểm tra lại trong transaction có khóa dòng `ArtisanProfile` (`SELECT ... FOR UPDATE`), nên nhiều request đồng thời không vượt được hạn mức. Request bị từ chối không để lại file trên đĩa. Xưởng chờ duyệt vẫn upload được ảnh `workshop` và `certificate` trong hạn mức.
+
 Module sản phẩm và chào giá gọi workshopId(true) ngay trên server trước khi thực hiện thao tác nghiệp vụ, kiểm tra quyền sở hữu đối tượng trong transaction khi ghi. Module quản trị duyệt xưởng cập nhật ArtisanProfile.approval. Mỗi yêu cầu đọc lại vai trò và trạng thái duyệt từ PostgreSQL. API artisans/{slug} bổ sung familyHistory, latitude, longitude, images và certificates.
 
 ## Sản phẩm và nhật ký sản xuất (4.3)
@@ -98,3 +108,30 @@ Dashboard Buyer và Artisan dẫn tới /dashboard/quotes. Tất cả endpoint y
 | deliver | Xưởng xác nhận đã giao phần được nhận. Đơn chuyển DELIVERED khi tất cả phần đã nhận đều giao đủ.                                                                                      |
 
 Mỗi thay đổi chạy trong transaction và khóa dòng QuoteRequest trước khi đọc trạng thái. Phiên bản cũ hoặc thao tác sai trạng thái trả 409. Client tải lại danh sách để lấy phiên bản mới. Dữ liệu không hợp lệ trả 400, thiếu phiên trả 401, sai quyền trả 403 và đơn không thuộc Buyer trả 404.
+
+## Kiểm duyệt hộ gia đình (7.1, Admin)
+
+Trang `/admin/workshops` (danh sách) và `/admin/workshops/{id}` (chi tiết) chỉ dành cho ADMIN. Chưa đăng nhập bị chuyển về `/login`, vai trò khác về dashboard của mình. Điều hướng chung của khu quản trị nằm ở `src/app/admin/layout.tsx`. Task 7.2 và B.4 thêm link vào đó.
+
+| Phương thức và URL                 | Đầu vào                                                                                              | Kết quả                                                                                                                     |
+| ---------------------------------- | ---------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| GET /api/v1/admin/workshops        | Query `status` (PENDING mặc định, APPROVED, REJECTED, SUSPENDED), `q` (tên xưởng hoặc email), `page` | 200, status, q, page, hasNext, items (20 hồ sơ mỗi trang, cũ nhất trước)                                                    |
+| GET /api/v1/admin/workshops/{id}   | —                                                                                                    | 200, hồ sơ đầy đủ: chủ hộ, email, SĐT, làng, lịch sử, câu chuyện, tọa độ, ảnh, chứng nhận, ngày đăng ký, lần duyệt gần nhất |
+| PATCH /api/v1/admin/workshops/{id} | JSON `approval`, `version` (đang xem), `reviewNote`                                                  | 200, hồ sơ sau khi cập nhật, version mới                                                                                    |
+
+Bảng chuyển trạng thái (ngoài bảng trả 409):
+
+| Từ        | Sang được                |
+| --------- | ------------------------ |
+| PENDING   | APPROVED, REJECTED       |
+| APPROVED  | SUSPENDED                |
+| SUSPENDED | APPROVED                 |
+| REJECTED  | PENDING ("Mở lại hồ sơ") |
+
+Từ chối (REJECTED), khóa (SUSPENDED) và mở lại hồ sơ bị từ chối (REJECTED → PENDING) bắt buộc `reviewNote` từ 5 đến 1000 ký tự, thiếu trả 400. Mở lại hồ sơ đưa xưởng về chờ duyệt: nghệ nhân sửa được hồ sơ và tải chứng nhận bổ sung nhưng chưa được đăng bán, sau đó admin duyệt hoặc từ chối lại. Mỗi lần đổi trạng thái ghi `reviewedById`, `reviewedAt`, `reviewNote` và tăng `version`. Cập nhật chỉ thành công khi hồ sơ vẫn đúng trạng thái và `version` mà admin đang xem. Nếu nghệ nhân vừa lưu hồ sơ (PUT /api/v1/workshop cũng tăng `version`) hoặc admin khác vừa quyết định, API trả 409 và admin cần tải lại. Chỉ hồ sơ thuộc tài khoản ARTISAN được kiểm duyệt. API không đổi vai trò người dùng và không chạm tài khoản Admin. Lỗi: 401 chưa đăng nhập, 403 không phải Admin hoặc Origin lạ, 404 không có hồ sơ.
+
+Mỗi hồ sơ trong danh sách, chi tiết và kết quả PATCH có thêm `openOrders`: số đơn sỉ xưởng được chọn (QuoteBid có `acceptedQuantity` > 0) mà đơn đang ở BUYER_ACCEPTED hoặc IN_PRODUCTION. Trang chi tiết và dialog Khóa hiện cảnh báo khi số này lớn hơn 0, vì khóa xưởng sẽ làm các đơn đó dừng lại cho tới khi mở khóa. Trường này chỉ đọc, không đổi đơn sỉ.
+
+Quyết định có hiệu lực ở request kế tiếp vì mỗi request đọc lại trạng thái duyệt từ PostgreSQL. Xưởng SUSPENDED/REJECTED không tạo hay sửa sản phẩm, lô, mốc, không chào giá; trang `/artisan/{slug}`, `/products/{id}`, `/trace/{code}` và ảnh công khai của xưởng trả 404. Schema chỉ lưu quyết định gần nhất, chưa có bảng lịch sử duyệt.
+
+Admin xem được ảnh đã gắn vào `images` hoặc `certificates` của mọi hồ sơ xưởng, kể cả xưởng chưa duyệt, qua `GET /media/{id}/{variant}`, để kiểm tra chứng nhận trước khi duyệt. Ảnh chưa gắn vào hồ sơ vẫn chỉ chủ xưởng xem được. Quy tắc cho người dùng khác giữ nguyên.

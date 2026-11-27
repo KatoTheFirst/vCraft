@@ -1,12 +1,13 @@
 import "server-only";
 import { cookies } from "next/headers";
 import { getIronSession } from "iron-session";
-import { createHash, randomUUID } from "node:crypto";
+import { randomUUID } from "node:crypto";
 import bcrypt from "bcryptjs";
 import { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 import { Problem } from "@/lib/endpoint";
 import { credentials, registration } from "@/validations/auth";
+import { throttle } from "./rate-limit";
 const ttl = 7 * 24 * 3600;
 async function cookie() {
   const password = process.env.SESSION_SECRET;
@@ -63,26 +64,9 @@ export async function logout() {
     await db.loginSession.deleteMany({ where: { id: session.id } });
   session.destroy();
 }
-async function throttle(action: string, email: string) {
-  const window = 15 * 60 * 1000;
-  const bucket = Math.floor(Date.now() / window);
-  const key = createHash("sha256")
-    .update([action, email, bucket].join("|"))
-    .digest("hex");
-  await db.authAttempt.deleteMany({
-    where: { expiresAt: { lte: new Date() } },
-  });
-  const attempt = await db.authAttempt.upsert({
-    where: { key },
-    create: { key, count: 1, expiresAt: new Date((bucket + 1) * window) },
-    update: { count: { increment: 1 } },
-  });
-  if (attempt.count > 10)
-    throw new Problem(429, "Vui lòng thử lại sau 15 phút.");
-}
 export async function register(raw: unknown) {
   const data = registration.parse(raw);
-  await throttle("register", data.email);
+  await throttle(db, "register", data.email);
   const passwordHash = await bcrypt.hash(data.password, 12);
   try {
     const user = await db.$transaction(async (tx) => {
@@ -122,7 +106,7 @@ export async function register(raw: unknown) {
 const dummyHash = bcrypt.hashSync(randomUUID(), 12);
 export async function login(raw: unknown) {
   const data = credentials.parse(raw);
-  await throttle("login", data.email);
+  await throttle(db, "login", data.email);
   const user = await db.user.findUnique({ where: { email: data.email } });
   const valid = await bcrypt.compare(
     data.password,

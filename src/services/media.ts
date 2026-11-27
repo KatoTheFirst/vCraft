@@ -3,8 +3,10 @@ import sharp from "sharp";
 import { randomUUID } from "node:crypto";
 import { mkdir, writeFile, unlink, readFile } from "node:fs/promises";
 import path from "node:path";
+import type { Approval, Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 import { Problem } from "@/lib/endpoint";
+import { throttle } from "./rate-limit";
 export const purposes = [
   "workshop",
   "certificate",
@@ -17,6 +19,58 @@ const formats: Record<string, string> = {
   png: "image/png",
   webp: "image/webp",
 };
+// Per-workshop limits (Đ-1). Pending workshops still get room for workshop
+// photos and certificates, which they need in order to be approved.
+export const UPLOAD_REQUESTS_PER_15_MIN = 20;
+export const MEDIA_QUOTA_PENDING = 30;
+export const MEDIA_QUOTA_APPROVED = 600;
+const quota = (approval: Approval) =>
+  approval === "APPROVED" ? MEDIA_QUOTA_APPROVED : MEDIA_QUOTA_PENDING;
+// 409: the request is valid, but conflicts with what the workshop already stores.
+function overQuota(approval: Approval, used: number, adding: number) {
+  const max = quota(approval);
+  if (used + adding <= max) return;
+  const left = Math.max(0, max - used);
+  throw new Problem(
+    409,
+    `Xưởng đã lưu ${used}/${max} ảnh, ` +
+      (left
+        ? `chỉ còn tải thêm được ${left} ảnh. Hãy chọn ít ảnh hơn.`
+        : "đã hết hạn mức ảnh.") +
+      (approval === "APPROVED"
+        ? " Liên hệ Ban quản lý nếu cần thêm."
+        : ` Sau khi xưởng được duyệt, hạn mức tăng lên ${MEDIA_QUOTA_APPROVED} ảnh.`),
+  );
+}
+// Cheap checks before the request body (up to 30 MiB) is read.
+export async function admitUpload(artisanId: string) {
+  await throttle(
+    db,
+    "upload",
+    artisanId,
+    UPLOAD_REQUESTS_PER_15_MIN,
+    "Bạn tải ảnh quá nhiều lần. Vui lòng thử lại sau 15 phút.",
+  );
+  const p = await db.artisanProfile.findUniqueOrThrow({
+    where: { id: artisanId },
+    select: { approval: true, _count: { select: { assets: true } } },
+  });
+  overQuota(p.approval, p._count.assets, 1);
+}
+// The binding check: lock the workshop row so concurrent uploads count in turn.
+async function saveWithinQuota(rows: Prisma.MediaAssetCreateManyInput[]) {
+  const artisanId = rows[0].artisanId;
+  await db.$transaction(async (tx) => {
+    const [p] = await tx.$queryRaw<{ approval: Approval }[]>`
+      SELECT approval FROM "ArtisanProfile" WHERE id = ${artisanId} FOR UPDATE`;
+    overQuota(
+      p.approval,
+      await tx.mediaAsset.count({ where: { artisanId } }),
+      rows.length,
+    );
+    await tx.mediaAsset.createMany({ data: rows });
+  });
+}
 function root() {
   const dir = process.env.MEDIA_STORAGE_DIR;
   if (dir && path.isAbsolute(dir)) return dir;
@@ -97,7 +151,8 @@ export class ImageUploadService {
           bytes: web.data.length,
         });
       }
-      await db.mediaAsset.createMany({ data: rows });
+      // Rejected here: the catch below removes the files already written.
+      await saveWithinQuota(rows);
       return rows.map(({ id, width, height, bytes }) => ({
         id,
         width,
@@ -116,6 +171,7 @@ export async function mediaBytes(
   id: string,
   variant: string,
   ownerId?: string,
+  isAdmin = false,
 ) {
   if (!/^[a-f0-9-]{36}$/.test(id) || !["thumb", "web"].includes(variant))
     return null;
@@ -137,9 +193,11 @@ export async function mediaBytes(
   if (!asset) return null;
   const a = asset.artisan;
   const url = "/media/" + id + "/web";
-  if (a.userId !== ownerId) {
+  const onProfile = a.images.includes(url) || a.certificates.includes(url);
+  // Admins review photos and certificates attached to any workshop profile (7.1).
+  if (a.userId !== ownerId && !(isAdmin && onProfile)) {
     if (a.approval !== "APPROVED") return null;
-    let published = a.images.includes(url) || a.certificates.includes(url);
+    let published = onProfile;
     if (!published && asset.purpose === "product")
       published = !!(await db.product.findFirst({
         where: {

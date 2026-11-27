@@ -5,7 +5,8 @@ export async function GET(
   { params }: { params: Promise<{ id: string; variant: string }> },
 ) {
   const { id, variant } = await params;
-  const bytes = await mediaBytes(id, variant, (await currentUser())?.id);
+  const user = await currentUser();
+  const bytes = await mediaBytes(id, variant, user?.id, user?.role === "ADMIN");
   if (!bytes)
     return new Response(null, {
       status: 404,
