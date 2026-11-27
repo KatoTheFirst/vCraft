@@ -45,6 +45,16 @@ Login và register giới hạn 10 lượt mỗi email mỗi thao tác trong c�
 
 Upload nhận 1–6 JPEG, PNG hoặc WebP tĩnh, tối đa 5 MiB và 24 megapixel mỗi ảnh. WebP hiển thị tối đa 1600 px, thumbnail 320 px, giữ tỷ lệ. Purpose nhận workshop, certificate, product hoặc production-log. Lưu url vào đúng trường ảnh của đối tượng sở hữu. Ảnh chưa gắn chỉ chủ xưởng xem được. Công khai ảnh khi gắn vào hồ sơ đã duyệt hoặc sản phẩm/lô công khai thuộc đúng xưởng.
 
+Hạn mức upload theo xưởng (hằng số trong `src/services/media.ts`):
+
+| Hằng số                      | Giá trị | Ý nghĩa                                                                   |
+| ---------------------------- | ------- | ------------------------------------------------------------------------- |
+| `UPLOAD_REQUESTS_PER_15_MIN` | 20      | Số request POST /api/v1/uploads mỗi xưởng trong một cửa sổ 15 phút        |
+| `MEDIA_QUOTA_PENDING`        | 30      | Tổng số ảnh một xưởng chờ duyệt được lưu (đủ cho ảnh xưởng và chứng nhận) |
+| `MEDIA_QUOTA_APPROVED`       | 600     | Tổng số ảnh một xưởng đã duyệt được lưu                                   |
+
+Vượt số request trả 429. Vượt tổng số ảnh trả 409 kèm số ảnh đang có, số còn lại và cách xử lý. Mã 409 được chọn thay vì 413 vì bản thân request hợp lệ; nó chỉ xung đột với số ảnh xưởng đang lưu, còn 413 vẫn dành cho từng ảnh quá 5 MiB hoặc body quá lớn. Server kiểm tra rate limit và hạn mức sơ bộ trước khi đọc body, nên request bị từ chối không làm server đọc tới 30 MiB. Hạn mức chính thức được kiểm tra lại trong transaction có khóa dòng `ArtisanProfile` (`SELECT ... FOR UPDATE`), nên nhiều request đồng thời không vượt được hạn mức. Request bị từ chối không để lại file trên đĩa. Xưởng chờ duyệt vẫn upload được ảnh `workshop` và `certificate` trong hạn mức.
+
 Module sản phẩm và chào giá gọi workshopId(true) ngay trên server trước khi thực hiện thao tác nghiệp vụ, kiểm tra quyền sở hữu đối tượng trong transaction khi ghi. Module quản trị duyệt xưởng cập nhật ArtisanProfile.approval. Mỗi yêu cầu đọc lại vai trò và trạng thái duyệt từ PostgreSQL. API artisans/{slug} bổ sung familyHistory, latitude, longitude, images và certificates.
 
 ## Sản phẩm và nhật ký sản xuất (4.3)

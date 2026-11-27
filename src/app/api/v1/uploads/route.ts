@@ -1,6 +1,6 @@
 import { endpoint, boundedBody, Problem } from "@/lib/endpoint";
 import { json } from "@/lib/http";
-import { ImageUploadService, purposes } from "@/services/media";
+import { ImageUploadService, admitUpload, purposes } from "@/services/media";
 import { workshopId } from "@/services/workshop";
 import { z } from "zod";
 export function POST(req: Request) {
@@ -9,6 +9,7 @@ export function POST(req: Request) {
     const type = req.headers.get("content-type") ?? "";
     if (!type.startsWith("multipart/form-data;"))
       throw new Problem(415, "Yêu cầu multipart/form-data.");
+    await admitUpload(id);
     const bytes = await boundedBody(req, 30 * 1024 * 1024 + 65536);
     let form: FormData;
     try {
